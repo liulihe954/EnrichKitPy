@@ -10,9 +10,19 @@ Both the web app and the python scripts are internally built on the [EnrichKitDB
 
 ### Usage
 
+##### Set up
+
+- clone this repo: `git clone https://github.com/liulihe954/EnrichKitPy.git`
+- replicate the same environment: `conda env create -f environment.yml` (get to know [conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) if necessary)
+- modify `config.py` accordingly and prepare your input file.
+- run the desired analysis/funtions (see the following)
+
+##### Analysis
+
 - **Parameter file** - `config.py`
   - This file contains necessary parameters for the provided analysis. Users are strongly encouraged to go through the parameters relevant to the desired functions.
   - In order to simply the syntax for each functions, we are gathering all paraters in this single parameter file. So, please note that this composite parameter file may contain parameters that are note relevant in your analysis, you may just ignore them.
+  - When executing the following functions/scripts, all the parameters specified will be automatically imported and used.
 - **Function scripts** - `*.py`
   - `id_conversion.py`: This script performs gene ID conversion. To use it, please run `python id_conversion.py input_id_conversion.txt`
   - `loci_annotation.py`: To use it, please run `python loci_annotation.py input_loci_annotation.txt`
