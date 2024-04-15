@@ -20,10 +20,13 @@ class Setup:
         if not dbcache_path.exists() or not db_path.exists():
             if not dbcache_path.exists():
                 dbcache_path.mkdir(parents=True, exist_ok=True)
+    
             if self.cloud_store == 'zenodo':
                 subprocess.run([self.zenodo_get, self.zenodo_record_id], check=True)
                 print('Download completed!')
-            shutil.move(db_path,dbcache_path)
+
+            shutil.move(os.path.join('EnrichKitDB.sqlite'), dbcache_path)
+
         else:
             print('Core DB/SQLite exists!')
 

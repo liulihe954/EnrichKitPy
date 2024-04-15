@@ -1,5 +1,7 @@
 name: enrichkitpy
 channels:
+  - bioconda
+  - conda-forge
   - defaults
 dependencies:
   - python=3.11
@@ -8,4 +10,4 @@ dependencies:
   - anaconda::pandas
   - scipy
   - statsmodels
-  - gseapy
+  - gseapy=0.9.5
