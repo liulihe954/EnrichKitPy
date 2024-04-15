@@ -3,6 +3,7 @@
 .dbcache/
 **/.DS_Store
 *.txt
+!example_input/*.txt
 *.csv
 *.tsv
 

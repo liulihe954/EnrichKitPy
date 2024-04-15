@@ -33,10 +33,9 @@ aggregation_methods = ['fisher','sidak','simes','fdr']
 
 ## Parameters for enrichment analysis - ORA & GSEA
 enrichment_input_id_type = 'ensembl' ## Note: currently only accept 'ensembl' gene id, the above "input_id_type" will be ignored.
-pathway_database = ['tf','kegg'] # 'go','interpro','mesh','reactome', 'kegg',
+pathway_database = ['tf','kegg','go','interpro','mesh','reactome']
 
-
-## All other supported databases, please use lower case abbreviation 
+## All supported databases, please use lower case abbreviation 
 # 'go' -> 'Gene Ontology(GO)'
 # 'interpro' -> 'Interpro'
 # 'kegg' -> 'KEGG'
