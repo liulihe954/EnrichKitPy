@@ -38,9 +38,9 @@ def main(args):
         config.upstream_length,
         config.downstream_length,
         config.splice_length,
-        input_list,
+        input_tuples,
         config.species,
-        len(input_list)
+        len(input_tuples)
     )
     all_results = process_query(input_params)
     
