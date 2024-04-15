@@ -5,44 +5,110 @@ import sqlite3
 import pandas as pd
 from .QueryExecutor import QueryExecutor
 from .SQLs import SQLs
+from .SQLs import sqlite_object
+from .Utils import query_post_process
 
-########
-######## posi_annotate()
-########
 
-def posi_annotate(input_upstream, input_downstream, input_splice, input_query_list, input_species):
-    queries = input_query_list
+########  
+######## process_query layer ########
+########
+        
+def process_query(input_params):
+    # initiate constants
+    curr_function = input_params[0]
     all_results = []
-
-    # Thread-safe progress bar initialization
-    with tqdm(total=len(queries), desc='Processing Queries') as pbar:
+    
+    # Create a single SQLite connection in read-only mode
+    conn = sqlite3.connect(sqlite_object, uri=True, check_same_thread=False)
+    
+    # Thread-safe progress bar initialization, the last element in the input_params is the number of queries to execute
+    with tqdm(total=input_params[-1], desc='Processing Queries') as pbar:
+        
         # Determine the number of cores to use
         max_cores = max(1, os.cpu_count() - 2)
 
         # Using ThreadPoolExecutor for parallel queries with max_cores
-        with ThreadPoolExecutor(max_workers=max_cores) as thread_executor:
+        with ThreadPoolExecutor(max_workers=max_cores) as thread_executor:    
             # Map the process_query function to all queries
-            futures = {thread_executor.submit(process_query, query, input_upstream, input_downstream, input_splice, input_species): query for query in queries}
             
+            try:
+                # for posi_annotate feature
+                if curr_function == 'posi_annotate':
+                    futures = {thread_executor.submit(process_query_posi_annotate, 
+                                                      conn,
+                                                      query,
+                                                      input_params[1],
+                                                      input_params[2],
+                                                      input_params[3],
+                                                      input_params[5]): query for query in input_params[4]}
+                    
+                elif curr_function == 'pval_aggregate':
+                    futures = {thread_executor.submit(process_query_pval_aggregate, 
+                                                      conn,
+                                                      query,
+                                                      input_params[1],
+                                                      input_params[2],
+                                                      input_params[4]): query for query in input_params[3]}
+                elif curr_function == 'id_convert':
+                    futures = {thread_executor.submit(id_convert, 
+                                                      conn,
+                                                      query,
+                                                      input_params[1],
+                                                      input_params[2]): query for query in input_params[3]}                
+                elif curr_function == 'enrichment':
+                    futures = {thread_executor.submit(enrichment, 
+                                                      conn,
+                                                      query,
+                                                      input_params[1]): query for query in input_params[2]}
+                    
+            except Exception as e:
+                print(f'Error in ThreadPoolExecutor: {e}')
+
+                
+            # collect results
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:
                     all_results.extend(result)  # Collect results
                 pbar.update(1)  # Update the progress bar
+            
+    conn.close()
 
-    # Creating the result DataFrame
-    result_df = pd.DataFrame(
-        all_results,
-        columns=['Input Chr', 'Input Posi', 'Label', 'Info 1', 'Info 2', 'Gene ID', 'Gene Biotype', 'Strand'])
+    return query_post_process(all_results, curr_function)
 
-    return result_df
 
+######## individual process_query customization layer ########
 
 ########
-######## process_query()
+######## enrichment() ########
 ########
+def enrichment(conn, cur_gene_params_raw, input_species):
 
-def process_query(cur_gene_params_raw, input_upstream, input_downstream, input_splice, input_species):
+    cur_gene_params = (input_species, cur_gene_params_raw)
+
+    try:
+        executor = QueryExecutor(conn, upstream=0, downstream=0)
+
+        if cur_gene_params_raw == 'tf':
+
+            cur_gene_results = executor.query(SQLs['extract_tf_gene'], category = 'extract_tf_gene', params = cur_gene_params)
+        
+        else:
+
+            cur_gene_results = executor.query(SQLs['extract_geneset_ensembl'], category = 'extract_geneset', params = cur_gene_params)
+
+        return [sublist + (cur_gene_params_raw,) for sublist in cur_gene_results]
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    
+    return None
+    
+########
+######## pval_annotate() ########
+########
+def process_query_posi_annotate(conn, cur_gene_params_raw, input_upstream, input_downstream, input_splice, input_species):
     
     SPLICE_OFFSET = input_splice - 50
     cur_gene_params =  tuple([input_species]) + cur_gene_params_raw
@@ -51,17 +117,17 @@ def process_query(cur_gene_params_raw, input_upstream, input_downstream, input_s
     
     try:
         
-        # Create a new executor for each query
-        executor = QueryExecutor(
-            '.dbcache/EnrichKitDB.sqlite',
-            upstream=input_upstream,
-            downstream=input_downstream
-        )
-        
+#         # Create a new executor for each query
+#         executor = QueryExecutor(
+#             '.dbcache/EnrichKitDB.sqlite',
+#             upstream=input_upstream,
+#             downstream=input_downstream
+#         )
+        executor = QueryExecutor(conn, upstream=input_upstream, downstream=input_downstream)
         ##
         ultra_limit = False
-
-        # s1: query target gene
+        
+        #
         cur_gene_results = executor.query(SQLs['posi2gene'], category = 'posi2gene', params=cur_gene_params)
 
         if cur_gene_results:
@@ -209,7 +275,6 @@ def process_query(cur_gene_params_raw, input_upstream, input_downstream, input_s
                 '']
             all_results.append(list(loci_annotation_placeholder))
             
-        executor.close()    
         return all_results
     
     except Exception as e:
@@ -217,3 +282,75 @@ def process_query(cur_gene_params_raw, input_upstream, input_downstream, input_s
         return None
     
 
+########
+######## id_convert() ########
+########
+def id_convert(conn, cur_gene_params_raw, input_species, input_id_type):
+    #
+    cur_gene_params =  (input_species,) + tuple(cur_gene_params_raw) #tuple([input_species]) + cur_gene_params_raw 
+
+    all_results = []
+
+    try:
+        executor = QueryExecutor(conn, upstream=0, downstream=0)
+
+        if input_id_type == 'ensembl':
+            cur_gene_results = executor.query(SQLs['id_convert_ensembl'], category = 'id_convert', params = cur_gene_params)
+            
+        elif input_id_type == 'entrez':
+            cur_gene_results = executor.query(SQLs['id_convert_entrez'], category = 'id_convert', params = cur_gene_params)
+        
+        if cur_gene_results:
+            temp_output = [cur_gene_params[1],]
+            temp_output.extend(cur_gene_results[0][2:])
+            all_results.append(temp_output)
+
+        else:
+            place_holder = [
+                cur_gene_params[1],
+            ]
+            place_holder.extend(['NA'] * 10)
+
+            all_results.append(place_holder)
+
+        return all_results
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    
+
+
+########
+######## pval_aggregate() ########
+########
+def process_query_pval_aggregate(conn, cur_gene_params_raw, input_upstream, input_downstream, input_species):
+    #
+    cur_gene_params =  tuple([input_species]) + cur_gene_params_raw
+    all_results = []
+
+    try:
+        executor = QueryExecutor(conn, upstream=input_upstream, downstream=input_downstream)
+
+        cur_gene_results = executor.query(SQLs['posi2gene'], category = 'posi2gene', params=cur_gene_params)
+
+        if cur_gene_results:
+            for item in cur_gene_results:
+                gene_target = executor.query(SQLs['ekid2geneid'], category = 'ekid2geneid', params=(str(item[0]),))
+                temp_out = [gene_target[0][2],cur_gene_params[3]]
+                all_results.append(temp_out)
+        else:
+            pval_aggregation_placeholder = [
+                '',
+                cur_gene_params[3]
+                ]
+            all_results.append(pval_aggregation_placeholder)
+            
+        return all_results
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    
+
+    ########

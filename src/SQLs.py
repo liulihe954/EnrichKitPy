@@ -1,3 +1,5 @@
+sqlite_object = 'file:.dbcache/EnrichKitDB.sqlite?mode=ro'
+
 SQLs = {
     'ekid2geneid': """
     SELECT *
@@ -59,7 +61,50 @@ SQLs = {
     AND ComputedFeatures.start <= ?
     AND ComputedFeatures.end >= ?
     """,
-    
+
+    'id_convert_ensembl': """
+    SELECT ID_Mapper.*
+    FROM ID_Mapper
+    JOIN Species ON ID_Mapper.species = Species.ek_species
+    WHERE Species.name_short = ? AND ID_Mapper.gene_id = ?
+    """,
+
+    'id_convert_entrez': """
+    SELECT ID_Mapper.*
+    FROM ID_Mapper
+    JOIN Species ON ID_Mapper.species = Species.ek_species
+    WHERE Species.name_short = ? AND ID_Mapper.entrez_id = ?
+    """,
+
+    'extract_geneset_ensembl': """
+    SELECT FilteredPathway.pathway_id, FilteredPathway.pathway_description, ID_Mapper.gene_id
+    FROM Involve
+    JOIN ID_Mapper ON Involve.ek_gene_id = ID_Mapper.ek_gene_id
+    JOIN (
+        SELECT Pathway.ek_pathway_id, Pathway.pathway_id, Pathway.pathway_description
+        FROM Pathway
+        JOIN Pathway_Meta ON Pathway.pathway_meta = Pathway_Meta.pathway_meta_id
+        WHERE Pathway_Meta.species = ? AND Pathway_Meta.name = ?
+    ) AS FilteredPathway ON Involve.ek_pathway_id = FilteredPathway.ek_pathway_id;
+    """,
+
+    'extract_geneset_entrez': """
+    SELECT FilteredPathway.pathway_id, FilteredPathway.pathway_description, ID_Mapper.entrez_id,
+    FROM Involve
+    JOIN ID_Mapper ON Involve.ek_gene_id = ID_Mapper.ek_gene_id
+    JOIN (
+        SELECT Pathway.ek_pathway_id, Pathway.pathway_id, Pathway.pathway_description
+        FROM Pathway
+        JOIN Pathway_Meta ON Pathway.pathway_meta = Pathway_Meta.pathway_meta_id
+        WHERE Pathway_Meta.species = ? AND Pathway_Meta.name = ?
+    ) AS FilteredPathway ON Involve.ek_pathway_id = FilteredPathway.ek_pathway_id;
+    """,
+
+    'extract_tf_gene':"""
+    SELECT *
+    FROM TF_Gene;
+    """,
+
     'test': """
     SELECT *
     FROM ComputedFeatures

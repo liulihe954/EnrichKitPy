@@ -1,9 +1,10 @@
 import argparse
 import csv
+import pandas as pd
 from random import sample
 import config
 from src.Setup import Setup
-from src.Query import posi_annotate
+from src.Query import process_query
 
 def main(args):
     # Set up Environment
@@ -16,34 +17,47 @@ def main(args):
     print('')
 
     # Process Input
-    print('About to process input data.')
+    print('Start processing input data.')
     input_tuples = []
+    
     with open(args.input_file, 'r') as file:
         reader = csv.reader(file)
         for row in reader:
-            input_tuples.append(tuple(row[0].split(':')))
-    print(f"Done. There are {len(input_tuples)} to be annotated.")
+            input_tuples.append(tuple(row[0].split(':'))) # TODO: add error handling
+                
+    print(f"Done. There are {len(input_tuples)} rows to be annotated.")
     print('')
     
     # for test purposes
-    input_list = sample(input_tuples, 400)
+    # input_list = sample(input_tuples, 50) # [('5','118503702') for _ in range(1000)] 
     
     # start annotation process
-    print('About to annotate the input data.')
-    result_df = posi_annotate(config.upstream_length,
-                              config.downstream_length,
-                              config.splice_length,
-                              input_list,
-                              config.species)
+    print('Start annotating the input data.')
+    input_params = (
+        'posi_annotate',
+        config.upstream_length,
+        config.downstream_length,
+        config.splice_length,
+        input_list,
+        config.species,
+        len(input_list)
+    )
+    all_results = process_query(input_params)
+    
+    # Creating the result DataFrame
+    result_df = pd.DataFrame(
+        all_results,
+        columns=['Input Chr', 'Input Posi', 'Label', 'Info 1', 'Info 2', 'Gene ID', 'Gene Biotype', 'Strand'])
+
     print('')
           
     # Output Processing
-    print('About to output results.')
+    print('Start to output results.')
     result_df['Input Chr'] = result_df['Input Chr'].astype(int)
     result_df['Input Posi'] = result_df['Input Posi'].astype(int)
     output = result_df.sort_values(by=["Input Chr", "Input Posi"], ascending=[True, True])
-    output.drop_duplicates().to_csv("annotation_" + args.input_file, index=False)
-    print(f'Done. Results are output to {"annotation_" + args.input_file}')
+    output.drop_duplicates().to_csv("OUTPUT_annotation_" + args.input_file, index=False)
+    print(f'Done. Results are output to OUTPUT_{"annotation_" + args.input_file}')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

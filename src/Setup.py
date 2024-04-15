@@ -1,6 +1,7 @@
 import subprocess
 import os
 from pathlib import Path
+import shutil
 
 class Setup:
     '''
@@ -22,6 +23,7 @@ class Setup:
             if self.cloud_store == 'zenodo':
                 subprocess.run([self.zenodo_get, self.zenodo_record_id], check=True)
                 print('Download completed!')
+            shutil.move(db_path,dbcache_path)
         else:
             print('Core DB/SQLite exists!')
 
